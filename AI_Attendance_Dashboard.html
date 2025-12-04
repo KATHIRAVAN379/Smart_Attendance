@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Attendance System Dashboard</title>
+
+  <!-- Bootstrap + Chart.js + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --bg-color: radial-gradient(circle at 10% 20%, #0c0e14, #000);
+      --card-bg: rgba(255,255,255,0.05);
+      --text-color: #f5f5f5;
+      --table-color: #fff;
+    }
+    [data-theme="light"] {
+      --bg-color: #f5f5f5;
+      --card-bg: rgba(0,0,0,0.05);
+      --text-color: #000;
+      --table-color: #000;
+    }
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: "Poppins", sans-serif;
+      overflow-x: hidden;
+      transition: background 0.4s ease, color 0.4s ease;
+    }
+    .navbar {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .navbar-brand {
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .theme-toggle {
+      cursor: pointer;
+      color: #f5f5f5;
+      transition: 0.3s;
+    }
+    .theme-toggle:hover {
+      transform: rotate(15deg);
+      color: #ffd700;
+    }
+    .card {
+      border: none;
+      border-radius: 15px;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+      transition: background 0.4s ease;
+    }
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+    .status-circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+    video {
+      width: 100%;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.2);
+      background: #000;
+    }
+    .table img {
+      width: 60px;
+      height: 60px;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+    .badge {
+      font-size: 0.8rem;
+    }
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar navbar-dark px-4 py-3">
+    <div class="container-fluid">
+      <a class="navbar-brand fs-4"><i class="fas fa-user-check me-2"></i>AI Attendance Dashboard</a>
+      <div class="d-flex align-items-center gap-3">
+        <i id="themeToggle" class="fas fa-sun theme-toggle"></i>
+        <div class="status-indicator">
+          <div class="status-circle bg-success" id="statusCircle"></div>
+          <span id="statusText">Live</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid py-4">
+    <div class="row g-4">
+      <div class="col-md-5">
+        <div class="card p-3">
+          <h5><i class="fas fa-video me-2"></i>Live Camera Feed</h5>
+          <video id="video" autoplay playsinline muted></video>
+          <div class="text-center mt-3">
+            <button id="captureBtn" class="btn btn-primary px-4">
+              <i class="fas fa-camera me-2"></i>Mark Attendance
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-7">
+        <div class="card p-3">
+          <h5><i class="fas fa-chart-line me-2"></i>Attendance Analytics</h5>
+          <canvas id="attendanceChart" height="120"></canvas>
+        </div>
+
+        <div class="card p-3 mt-4">
+          <h5><i class="fas fa-users me-2"></i>Recent Attendance</h5>
+          <div class="table-responsive">
+            <table class="table table-dark table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Photo</th>
+                  <th>Name</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendanceTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>© 2025 AI Attendance System | Designed by Kathiravan</footer>
+  </div>
+
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="liveToast" class="toast text-bg-dark border-0" role="alert">
+      <div class="d-flex">
+        <div class="toast-body" id="toastMsg">Message</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const video = document.getElementById("video");
+    const captureBtn = document.getElementById("captureBtn");
+    const statusCircle = document.getElementById("statusCircle");
+    const statusText = document.getElementById("statusText");
+    const table = document.getElementById("attendanceTable");
+    const themeToggle = document.getElementById("themeToggle");
+    const toastEl = document.getElementById("liveToast");
+    const toast = new bootstrap.Toast(toastEl);
+    const toastMsg = document.getElementById("toastMsg");
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => console.error("Camera not accessible:", err));
+
+    captureBtn.addEventListener("click", async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      const dataURL = canvas.toDataURL("image/jpeg", 0.9);
+
+      statusText.innerText = "Checking...";
+      statusCircle.className = "status-circle bg-warning";
+
+      try {
+        const res = await fetch("http://127.0.0.1:5000/mark_attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_base64: dataURL.split(",")[1],
+            timestamp: new Date().toISOString()
+          }),
+        });
+        const result = await res.json();
+
+        if (result.ok) {
+  const personName = result.name || "Unknown";
+  statusText.innerText = "Live";
+  statusCircle.className = "status-circle bg-success";
+  addRow(result.image_path || dataURL, personName, result.timestamp, "Present");
+  showToast(`✅ Attendance Marked for ${personName}!`);
+}
+
+        else {
+          statusText.innerText = "Spoof Detected";
+          statusCircle.className = "status-circle bg-danger";
+          showToast("⚠️ Spoof detected. Attendance not marked!");
+        }
+      } catch (err) {
+        statusText.innerText = "Offline";
+        statusCircle.className = "status-circle bg-secondary";
+        showToast("❌ Server not reachable!");
+      }
+    });
+
+    function addRow(photo, name, time, status) {
+  const row = document.createElement("tr");
+  row.innerHTML = `
+    <td>${table.children.length + 1}</td>
+    <td><img src="${photo}" /></td>
+    <td>${name}</td>
+    <td>${new Date(time).toLocaleString()}</td>
+    <td><span class="badge bg-success">${status}</span></td>
+  `;
+  table.prepend(row);
+}
+
+
+    function showToast(message) {
+      toastMsg.innerText = message;
+      toast.show();
+    }
+
+    setInterval(async () => {
+      try {
+        const res = await fetch("http://127.0.0.1:5000/get_recent_attendance");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          table.innerHTML = "";
+          data.forEach((row, i) => {
+            addRow(row.image_path, row.person_text || "Unknown", row.timestamp, "Present");
+          });
+        }
+      } catch (err) {
+        console.warn("Auto-refresh skipped:", err);
+      }
+    }, 10000);
+
+    themeToggle.addEventListener("click", () => {
+      if (document.body.getAttribute("data-theme") === "light") {
+        document.body.removeAttribute("data-theme");
+        themeToggle.className = "fas fa-sun theme-toggle";
+      } else {
+        document.body.setAttribute("data-theme", "light");
+        themeToggle.className = "fas fa-moon theme-toggle";
+      }
+    });
+
+    const ctx = document.getElementById("attendanceChart").getContext("2d");
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        datasets: [{
+          label: "Attendance Count",
+          data: [8, 12, 9, 14, 11],
+          borderColor: "rgba(54,162,235,0.8)",
+          backgroundColor: "rgba(54,162,235,0.3)",
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "var(--table-color)" } },
+          y: { ticks: { color: "var(--table-color)" } }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
